@@ -1,433 +1,448 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/utils/supabase/client";
 
 type Game = {
   name: string;
   players: string;
   description: string;
   emoji: string;
-  color: string;
+  category: string;
   gradient: string;
+  glow: string;
+  accent: string;
+  route: string;
 };
 
 const games: Game[] = [
   {
-    name: "Snooker",
-    players: "2 Players",
-    description: "Line up your shots. Own the table.",
-    emoji: "🎱",
-    color: "#43e0a0",
-    gradient: "linear-gradient(135deg, #103d32, #071f1b)",
+    name: "8-Ball Pool",
+      players: "1–2 players",
+    description:
+      "Line up your shot, control the cue ball and sink the 8-ball.",
+      emoji: "\uD83C\uDFB1",
+    category: "SPORTS & SKILL",
+    gradient: "from-teal-950 via-emerald-900 to-cyan-950",
+    glow: "rgba(45, 212, 191, 0.24)",
+    accent: "text-teal-300",
+    route: "/pool3d",
   },
   {
     name: "Whot",
-    players: "2 Players",
-    description: "Play your cards. Outsmart your rival.",
-    emoji: "🃏",
-    color: "#b69aff",
-    gradient: "linear-gradient(135deg, #35245c, #19122c)",
+      players: "1–2 players",
+    description:
+      "Match shapes, play your special cards and outsmart your opponent.",
+      emoji: "\uD83C\uDC0F",
+    category: "CARD STRATEGY",
+    gradient: "from-fuchsia-950 via-purple-900 to-indigo-950",
+    glow: "rgba(192, 132, 252, 0.24)",
+    accent: "text-purple-300",
+    route: "/whot",
   },
   {
     name: "Ludo",
-    players: "2–4 Players",
-    description: "Roll the dice. Race to victory.",
-    emoji: "🎲",
-    color: "#ffb75e",
-    gradient: "linear-gradient(135deg, #57331b, #25180f)",
+      players: "2–4 players",
+    description:
+      "Roll the dice, move your tokens and race your way to victory.",
+      emoji: "\uD83C\uDFB2",
+    category: "CLASSIC BOARD",
+    gradient: "from-amber-950 via-orange-900 to-rose-950",
+    glow: "rgba(251, 191, 36, 0.24)",
+    accent: "text-amber-300",
+    route: "/ludo",
   },
 ];
 
-const stakes = [500, 1000, 1500, 2000];
-
 export default function Home() {
-  const [balance, setBalance] = useState(5000);
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [selectedStake, setSelectedStake] = useState(500);
-  const [customStake, setCustomStake] = useState("");
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
-  const [activeTab, setActiveTab] = useState("Games");
 
-  const stake = customStake ? Number(customStake) : selectedStake;
+  useEffect(() => {
+    let mounted = true;
 
-  function createRoom() {
-    if (!selectedGame) return;
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!mounted) return;
+      setUser(error ? null : data.user);
+      setLoading(false);
+    });
 
-    if (!Number.isFinite(stake) || stake < 1) {
-      setNotice("Enter a valid virtual-coin stake.");
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  function openGame(game: Game) {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(game.route)}`);
       return;
     }
+    router.push(game.route);
+  }
 
-    if (stake > balance) {
-      setNotice("Your virtual-coin balance is too low for this stake.");
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setNotice("Unable to sign out. Please try again.");
       return;
     }
-
-    setBalance((previous) => previous - stake);
-    setNotice(
-      `${selectedGame.name} room created with ${stake.toLocaleString()} virtual coins. Online matchmaking will be added next.`
-    );
-    setSelectedGame(null);
-    setCustomStake("");
+    setUser(null);
+    setNotice("You have signed out successfully.");
+    router.refresh();
   }
 
   return (
-    <main className="min-h-screen bg-[#080b10] text-white">
-      <div className="mx-auto flex min-h-screen max-w-[1500px]">
-        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#0c1017] p-6 md:flex md:flex-col">
-          <a href="#" className="mb-12 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 text-2xl text-black">
-              ♠
+    <main className="squad-home min-h-screen overflow-hidden bg-[#070b14] text-white">
+      <style>{`
+        @keyframes squadFadeUp {
+          from { opacity: 0; transform: translateY(22px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes squadAmbient {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -18px, 0) scale(1.06); }
+        }
+        @keyframes squadShimmer {
+          from { transform: translateX(-150%) skewX(-18deg); }
+          to { transform: translateX(250%) skewX(-18deg); }
+        }
+        .squad-reveal {
+          animation: squadFadeUp .7s ease-out both;
+        }
+        .squad-game-card {
+          position: relative;
+          isolation: isolate;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,.09);
+          transition: transform .28s ease, border-color .28s ease,
+            box-shadow .28s ease;
+        }
+        .squad-game-card:hover {
+          transform: translateY(-7px);
+          border-color: rgba(255,255,255,.24);
+        }
+        .squad-game-card::after {
+          content: "";
+          position: absolute;
+          z-index: -1;
+          top: 0;
+          bottom: 0;
+          left: -50%;
+          width: 35%;
+          background: linear-gradient(90deg, transparent,
+            rgba(255,255,255,.08), transparent);
+          transform: skewX(-18deg);
+          pointer-events: none;
+        }
+        .squad-game-card:hover::after {
+          animation: squadShimmer .85s ease;
+        }
+        .squad-game-art {
+          transition: transform .35s ease;
+        }
+        .squad-game-card:hover .squad-game-art {
+          transform: scale(1.045);
+        }
+        .squad-action {
+          transition: transform .2s ease, background-color .2s ease;
+        }
+        .squad-action:hover { transform: translateY(-2px); }
+        .squad-ambient {
+          animation: squadAmbient 9s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .squad-reveal, .squad-ambient { animation: none !important; }
+          .squad-game-card, .squad-game-art, .squad-action {
+            transition: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="squad-ambient absolute -left-40 -top-40 h-96 w-96 rounded-full bg-emerald-500/10 blur-[110px]" />
+        <div className="squad-ambient absolute -right-40 top-1/3 h-96 w-96 rounded-full bg-violet-500/10 blur-[120px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.07),transparent_50%)]" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-5 sm:px-8">
+        <header className="flex items-center justify-between border-b border-white/[0.08] py-5">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-xl font-black text-emerald-300 shadow-lg shadow-emerald-950/30">
+              S
             </span>
             <span>
-              <span className="block text-xl font-black tracking-tight">
-                Squad<span className="text-emerald-400">Bet</span>
+              <span className="block text-lg font-black tracking-tight">
+                Squad<span className="text-emerald-300">Bet</span>
               </span>
-              <span className="text-xs text-gray-500">PLAY. COMPETE. WIN.</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[.25em] text-slate-500">
+                Play together
+              </span>
             </span>
-          </a>
+          </Link>
 
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-gray-500">
-            Menu
-          </p>
-
-          <nav className="space-y-2">
-            {[
-              ["Games", "⌂"],
-              ["Play with Friends", "♧"],
-              ["Find Players", "⌕"],
-              ["Leaderboard", "♛"],
-            ].map(([label, icon]) => (
-              <button
-                key={label}
-                onClick={() => {
-                  setActiveTab(label);
-                  if (label !== "Games") {
-                    setNotice(
-                      `${label} will be connected when we add player accounts and multiplayer.`
-                    );
-                  } else {
-                    setNotice("");
-                  }
-                }}
-                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
-                  activeTab === label
-                    ? "bg-emerald-400/10 text-emerald-300"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <span className="text-xl">{icon}</span>
-                {label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="mt-auto rounded-2xl border border-white/10 bg-[#121923] p-4">
-            <span className="text-2xl">🛡️</span>
-            <p className="mt-3 font-bold">Play responsibly</p>
-            <p className="mt-1 text-xs leading-5 text-gray-400">
-              This is a virtual-coin demo. Coins have no cash value.
-            </p>
-          </div>
-        </aside>
-
-        <section className="min-w-0 flex-1">
-          <header className="flex items-center justify-between border-b border-white/10 px-5 py-5 sm:px-8">
-            <div className="flex items-center gap-3 md:hidden">
-              <span className="text-2xl text-emerald-400">♠</span>
-              <span className="text-lg font-black">
-                Squad<span className="text-emerald-400">Bet</span>
-              </span>
-            </div>
-
-            <div className="hidden md:block">
-              <p className="text-sm text-gray-400">Welcome to the arena</p>
-              <h1 className="text-xl font-bold">Find your next challenge.</h1>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 sm:px-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                  Demo coins
-                </p>
-                <p className="font-bold text-emerald-300">
-                  🪙 {balance.toLocaleString()}
-                </p>
-              </div>
-              <button
-                onClick={() =>
-                  setNotice(
-                    "Player profiles and sign-in will be connected in the next stage."
-                  )
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1b2430] font-bold"
-                aria-label="Open profile"
-              >
-                P
-              </button>
-            </div>
-          </header>
-
-          <div className="p-5 sm:p-8 lg:p-10">
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-300/15 bg-gradient-to-br from-[#12372e] via-[#10241f] to-[#10151e] p-6 sm:p-10">
-              <div className="pointer-events-none absolute -right-12 -top-16 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
-              <div className="relative max-w-2xl">
-                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-black/20 px-3 py-1.5 text-xs font-bold text-emerald-300">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  YOUR NEXT MATCH STARTS HERE
+          <nav className="flex max-w-[68%] flex-wrap items-center justify-end gap-2 sm:max-w-none sm:gap-3">
+            <Link
+              href="/"
+              className="hidden rounded-full px-4 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white sm:inline-flex"
+            >
+              Home
+            </Link>
+            {loading ? (
+              <>
+                <Link
+                  href="/login"
+                  className="min-h-10 rounded-full px-3 py-2 text-xs font-semibold text-slate-300 sm:px-4 sm:text-sm"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  className="squad-action min-h-10 rounded-full bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 sm:px-4 sm:text-sm"
+                >
+                  Get started
+                </Link>
+              </>
+            ) : user ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="min-h-10 rounded-full bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-400/20 sm:px-4 sm:text-sm"
+                >
+                  Dashboard
+                </Link>
+                <span className="inline-block max-w-28 truncate text-xs text-slate-300 sm:max-w-36 sm:text-sm">
+                  {user.user_metadata?.username ||
+                    user.user_metadata?.full_name ||
+                    user.email?.split("@")[0] ||
+                    "Player"}
                 </span>
-
-                <h2 className="mt-6 text-4xl font-black leading-tight tracking-tight sm:text-6xl">
-                  Bring your
-                  <br />
-                  <span className="text-emerald-400">A-game.</span>
-                </h2>
-
-                <p className="mt-4 max-w-md text-sm leading-6 text-gray-300 sm:text-base">
-                  Challenge your friends, meet new rivals across Nigeria, and
-                  climb the SquadBet leaderboard.
-                </p>
-
                 <button
-                  onClick={() =>
-                    document
-                      .getElementById("games")
-                      ?.scrollIntoView({ behavior: "smooth" })
-                  }
-                  className="mt-7 rounded-xl bg-emerald-400 px-6 py-3 font-extrabold text-[#07120e] transition hover:bg-emerald-300"
+                  onClick={handleLogout}
+                  className="squad-action min-h-10 rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5 hover:text-white sm:px-4 sm:text-sm"
                 >
-                  Explore games <span className="ml-2">→</span>
+                  Sign out
                 </button>
-              </div>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="min-h-10 rounded-full px-3 py-2 text-xs font-semibold text-slate-300 transition hover:text-white sm:px-4 sm:text-sm"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  className="squad-action min-h-10 rounded-full bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-950/40 hover:bg-emerald-300 sm:px-4 sm:text-sm"
+                >
+                  Get started
+                </Link>
+              </>
+            )}
+          </nav>
+        </header>
 
-              <div className="pointer-events-none absolute bottom-3 right-4 hidden text-[150px] opacity-15 lg:block">
-                🎱
-              </div>
+        <section className="squad-reveal relative py-16 sm:py-24">
+          <div className="absolute right-4 top-16 hidden h-32 w-32 items-center justify-center rounded-full border border-emerald-300/10 bg-emerald-300/[0.03] text-6xl opacity-70 md:flex">
+            &#127921;
+          </div>
+
+          <div className="relative max-w-3xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[.18em] text-emerald-300">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
+              Your next game starts here
             </div>
 
-            <div className="mt-9 flex flex-wrap items-end justify-between gap-4" id="games">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
-                  Choose your battle
-                </p>
-                <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-                  Popular games
-                </h2>
-                <p className="mt-2 text-sm text-gray-400">
-                  Pick a game and set your virtual-coin stake.
-                </p>
-              </div>
-              <span className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-400">
-                3 GAMES AVAILABLE
+            <h1 className="max-w-3xl text-4xl font-black leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
+              Good games.
+              <br />
+              <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
+                Better together.
+              </span>
+            </h1>
+
+            <p className="mt-6 max-w-xl text-base leading-7 text-slate-400 sm:text-lg sm:leading-8">
+              Pick your game, sharpen your skills and challenge your people.
+              Your next favourite match is just one click away.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <a
+                href="#games"
+                className="squad-action inline-flex items-center gap-2 rounded-full bg-emerald-400 px-6 py-3.5 text-sm font-extrabold text-slate-950 shadow-xl shadow-emerald-950/40 hover:bg-emerald-300"
+              >
+                Explore games <span aria-hidden="true">&#8594;</span>
+              </a>
+              {!user && !loading && (
+                <Link
+                  href="/register"
+                  className="squad-action rounded-full border border-white/10 bg-white/[0.03] px-6 py-3.5 text-sm font-bold text-white hover:bg-white/[0.07]"
+                >
+                  Create your account
+                </Link>
+              )}
+            </div>
+
+            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-500">
+              <span className="flex items-center gap-2">
+                <span className="text-emerald-300">&#10022;</span> Skill-based fun
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-emerald-300">&#10022;</span> Multiple games
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-emerald-300">&#10022;</span> Made for your squad
               </span>
             </div>
+          </div>
+        </section>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-3">
-              {games.map((game) => (
-                <article
-                  key={game.name}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#10151d] transition duration-300 hover:-translate-y-1 hover:border-white/20"
+        {notice && (
+          <div
+            role="status"
+            className="mb-6 flex items-center justify-between rounded-xl border border-emerald-300/20 bg-emerald-300/[0.07] px-4 py-3 text-sm text-emerald-200"
+          >
+            <span>{notice}</span>
+            <button
+              onClick={() => setNotice("")}
+              className="ml-4 text-emerald-100/70 hover:text-white"
+              aria-label="Dismiss notification"
+            >
+              &#10003;
+            </button>
+          </div>
+        )}
+
+        <section id="games" className="pb-16 sm:pb-24">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="mb-3 text-xs font-bold uppercase tracking-[.24em] text-emerald-300">
+                The game room
+              </p>
+              <h2 className="text-3xl font-black tracking-tight sm:text-4xl">
+                Choose your game
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">
+                Different games, different strategies. Find your favourite and
+                make your next move.
+              </p>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-400">
+              {games.length} games available
+            </span>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {games.map((game, index) => (
+              <article
+                key={game.name}
+                className="squad-game-card squad-reveal group rounded-3xl bg-[#0c1220]"
+                style={{
+                  animationDelay: `${index * 110}ms`,
+                  boxShadow: `0 20px 60px -30px ${game.glow}`,
+                }}
+              >
+                <div
+                  className={`squad-game-art relative flex h-52 items-center justify-center overflow-hidden bg-gradient-to-br ${game.gradient}`}
                 >
-                  <div
-                    className="relative flex h-44 items-center justify-center overflow-hidden"
-                    style={{ background: game.gradient }}
-                  >
-                    <div
-                      className="absolute h-36 w-36 rounded-full opacity-20 blur-2xl"
-                      style={{ background: game.color }}
-                    />
-                    <span className="relative text-8xl drop-shadow-2xl transition duration-300 group-hover:scale-110">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.10),transparent_45%)]" />
+                  <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:32px_32px]" />
+                  <div className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 text-[10px] font-bold tracking-[.17em] text-white/80 backdrop-blur">
+                    {game.category}
+                  </div>
+                  <div className="relative flex h-28 w-28 items-center justify-center rounded-[2rem] border border-white/15 bg-black/15 text-7xl shadow-2xl backdrop-blur-sm transition duration-300 group-hover:scale-110">
+                    <span role="img" aria-label={game.name}>
                       {game.emoji}
                     </span>
-                    <span className="absolute left-4 top-4 rounded-lg border border-white/10 bg-black/30 px-3 py-1 text-xs font-bold">
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/25 to-transparent" />
+                </div>
+
+                <div className="p-6">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <h3 className="text-2xl font-extrabold tracking-tight">
+                      {game.name}
+                    </h3>
+                    <span
+                      className={`shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold ${game.accent}`}
+                    >
                       {game.players}
                     </span>
                   </div>
-
-                  <div className="p-5">
-                    <h3 className="text-xl font-extrabold">{game.name}</h3>
-                    <p className="mt-2 min-h-10 text-sm leading-5 text-gray-400">
-                      {game.description}
-                    </p>
-                    <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
-                      <span className="text-xs text-gray-500">
-                        Virtual coins
-                      </span>
-                      <button
-                        onClick={() => {
-                          setSelectedGame(game);
-                          setNotice("");
-                          setCustomStake("");
-                          setSelectedStake(500);
-                        }}
-                        className="rounded-xl px-4 py-2.5 text-sm font-extrabold text-black transition hover:brightness-110"
-                        style={{ backgroundColor: game.color }}
-                      >
-                        Play now →
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <button
-                onClick={() =>
-                  setNotice(
-                    "Friend invitations need registered player accounts. We'll build this feature next."
-                  )
-                }
-                className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#10151d] p-5 text-left transition hover:border-emerald-400/30"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-400/10 text-2xl">
-                  👥
-                </span>
-                <span>
-                  <span className="block font-bold">Play with friends</span>
-                  <span className="mt-1 block text-sm text-gray-400">
-                    Invite your crew to a private match.
-                  </span>
-                </span>
-                <span className="ml-auto text-gray-500">→</span>
-              </button>
-
-              <button
-                onClick={() =>
-                  setNotice(
-                    "Nationwide player search will work after we add user accounts and a shared database."
-                  )
-                }
-                className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#10151d] p-5 text-left transition hover:border-emerald-400/30"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-400/10 text-2xl">
-                  🌍
-                </span>
-                <span>
-                  <span className="block font-bold">Meet new players</span>
-                  <span className="mt-1 block text-sm text-gray-400">
-                    Connect with players around Nigeria.
-                  </span>
-                </span>
-                <span className="ml-auto text-gray-500">→</span>
-              </button>
-            </div>
-
-            {notice && (
-              <div
-                role="status"
-                className="mt-6 flex items-start justify-between gap-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-100"
-              >
-                <p>{notice}</p>
-                <button
-                  onClick={() => setNotice("")}
-                  className="shrink-0 text-lg"
-                  aria-label="Dismiss message"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            <footer className="mt-12 border-t border-white/10 py-6 text-center text-xs leading-6 text-gray-500">
-              © 2026 SquadBet · Play fair. Respect every player.
-              <br />
-              Demo only. Virtual coins are not money and cannot be withdrawn.
-            </footer>
+                  <p className="min-h-[48px] text-sm leading-6 text-slate-400">
+                    {game.description}
+                  </p>
+                  <button
+                    onClick={() => openGame(game)}
+                    type="button"
+                    className="squad-action mt-6 flex min-h-12 w-full touch-manipulation items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-bold text-white hover:border-emerald-300/30 hover:bg-emerald-300/10"
+                  >
+                    <span>Play {game.name}</span>
+                    <span className="text-lg text-emerald-300 transition-transform group-hover:translate-x-1">
+                      &#8594;
+                    </span>
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
-      </div>
 
-      {selectedGame && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setSelectedGame(null);
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="stake-title"
-            className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111720] p-6 shadow-2xl sm:p-8"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-                  Create a demo room
-                </p>
-                <h2 id="stake-title" className="mt-2 text-2xl font-black">
-                  {selectedGame.emoji} {selectedGame.name}
-                </h2>
+        <section className="mb-16 overflow-hidden rounded-3xl border border-white/[0.09] bg-gradient-to-br from-[#101a27] via-[#0d1421] to-[#111027] p-7 sm:mb-24 sm:p-10">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+            <div className="max-w-2xl">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[.22em] text-teal-300">
+                One squad. Many ways to play.
               </div>
-              <button
-                onClick={() => setSelectedGame(null)}
-                className="rounded-lg px-3 py-1 text-2xl text-gray-400 hover:bg-white/5"
-                aria-label="Close dialog"
-              >
-                ×
-              </button>
+              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+                Ready to make your move?
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">
+                Sign in to access your games. Online multiplayer rooms and
+                additional features can be added as the platform grows.
+              </p>
             </div>
-
-            <p className="mt-3 text-sm leading-6 text-gray-400">
-              Choose how many virtual coins to use for this demo room.
-            </p>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              {stakes.map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => {
-                    setSelectedStake(amount);
-                    setCustomStake("");
-                  }}
-                  className={`rounded-xl border p-4 text-left font-bold transition ${
-                    !customStake && selectedStake === amount
-                      ? "border-emerald-400 bg-emerald-400/10 text-emerald-300"
-                      : "border-white/10 bg-white/[0.02] hover:border-white/20"
-                  }`}
-                >
-                  🪙 {amount.toLocaleString()}
-                </button>
-              ))}
-            </div>
-
-            <label
-              htmlFor="custom-stake"
-              className="mt-5 block text-sm font-semibold text-gray-300"
+            <Link
+              href={user ? "/pool3d" : "/register"}
+              className="squad-action inline-flex shrink-0 items-center justify-center rounded-full bg-white px-6 py-3.5 text-sm font-extrabold text-slate-950 hover:bg-emerald-200"
             >
-              Or enter a custom amount
-            </label>
-            <input
-              id="custom-stake"
-              type="number"
-              min="1"
-              step="1"
-              value={customStake}
-              onChange={(event) => setCustomStake(event.target.value)}
-              placeholder="Enter virtual coins"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#080b10] px-4 py-3 outline-none focus:border-emerald-400"
-            />
+              {user ? "Enter game room" : "Join SquadBet"} <span className="ml-2">&#8594;</span>
+            </Link>
+          </div>
+        </section>
 
-            <div className="mt-5 flex items-center justify-between rounded-xl bg-white/[0.04] p-4">
-              <span className="text-sm text-gray-400">Your balance</span>
-              <span className="font-bold">🪙 {balance.toLocaleString()}</span>
-            </div>
-
-            <button
-              onClick={createRoom}
-              className="mt-5 w-full rounded-xl bg-emerald-400 py-4 font-extrabold text-[#07120e] transition hover:bg-emerald-300"
-            >
-              Create demo room
-            </button>
-
-            <p className="mt-4 text-center text-xs leading-5 text-gray-500">
-              No real-money deposits, bets, or payouts. This demo does not
-              connect you to another player yet.
-            </p>
-          </section>
-        </div>
-      )}
+        <footer className="mt-auto flex flex-col gap-4 border-t border-white/[0.08] py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            &#169; 2026 SquadBet. Play fair. Have fun.
+          </p>
+          <div className="flex flex-wrap gap-5">
+            <Link href="/privacy" className="transition hover:text-white">
+              Privacy
+            </Link>
+            <Link href="/terms" className="transition hover:text-white">
+              Terms
+            </Link>
+            <Link href="/contact" className="transition hover:text-white">
+              Contact
+            </Link>
+          </div>
+        </footer>
+      </div>
     </main>
   );
 }
+
+
+

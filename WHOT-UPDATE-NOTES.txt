@@ -1,0 +1,14 @@
+SQUADBET WHOT UPDATE
+
+Included in this update:
+1. Whot page clock state starts at 0 and is initialized by its existing one-second client timer, avoiding Date.now() during prerender.
+2. Whot game screen displays an opponent-disconnected notice and a five-minute countdown when the API reports the opponent's player*_disconnected_at timestamp.
+3. Dashboard checks for the signed-in user's latest in-progress Whot match and displays a Continue your game button. It routes back to /whot?matchId=<match id>, where the existing game API reloads the saved player-specific hand and shared game state.
+
+Important limitations:
+- The countdown display depends on the existing Supabase presence/timeout process setting player1_disconnected_at or player2_disconnected_at. This ZIP does not add or change database functions, triggers, or pg_cron schedules.
+- The database timeout process remains authoritative for forfeiture and wallet settlement. The browser countdown itself does not award a win or move money.
+- Reconnect, timeout settlement, and two-account wallet behavior still require live testing against the connected Supabase project.
+- A production build could not be rerun in this packaging environment because dependency installation did not complete. The user's prior local build passed before these latest UI changes; run npm.cmd run build after extracting this ZIP.
+
+Extract this ZIP into the existing SquadBet project folder, preserving .env.local. Do not replace .env.local with any archive file.

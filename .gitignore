@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SquadBet local backup files
+*.backup
+*.bak
+*.date-backup
+*.encoding-backup
+
+*backup*
+
+*before-*
+*damaged*
