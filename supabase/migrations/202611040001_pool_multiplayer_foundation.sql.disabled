@@ -1,0 +1,109 @@
+-- SquadBet 8-ball Pool multiplayer foundation.
+-- This migration adds a participant-scoped session record and an atomic
+-- ready-up RPC. It deliberately does NOT implement authoritative physics,
+-- shot validation, disconnect handling, or wallet settlement.
+
+create table if not exists public.pool_game_sessions (
+  match_id uuid primary key references public.matches(id) on delete cascade,
+  game_state jsonb not null default '{}'::jsonb,
+  current_turn_user_id uuid references auth.users(id) on delete set null,
+  turn_number bigint not null default 0 check (turn_number >= 0),
+  state_version bigint not null default 0 check (state_version >= 0),
+  player1_last_seen_at timestamptz,
+  player2_last_seen_at timestamptz,
+  player1_disconnected_at timestamptz,
+  player2_disconnected_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.pool_game_sessions enable row level security;
+
+drop policy if exists "Pool players can read their own game session" on public.pool_game_sessions;
+create policy "Pool players can read their own game session"
+  on public.pool_game_sessions
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.matches m
+      where m.id = pool_game_sessions.match_id
+        and (auth.uid() = m.player1_id or auth.uid() = m.player2_id)
+        and m.game = '8-ball Pool'
+    )
+  );
+
+revoke all on public.pool_game_sessions from anon, authenticated;
+grant select on public.pool_game_sessions to authenticated;
+grant all on public.pool_game_sessions to service_role;
+
+create or replace function public.pool_set_ready(p_match_id uuid, p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_match public.matches%rowtype;
+  v_both_ready boolean;
+begin
+  if p_user_id is null then
+    return jsonb_build_object('success', false, 'error', 'Authentication required.');
+  end if;
+
+  -- The API verifies the bearer token and supplies its verified user ID.
+  select * into v_match
+  from public.matches
+  where id = p_match_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('success', false, 'error', 'Match not found.');
+  end if;
+  if v_match.game <> '8-ball Pool' then
+    return jsonb_build_object('success', false, 'error', 'This is not an 8-ball Pool match.');
+  end if;
+  if p_user_id <> v_match.player1_id and p_user_id <> v_match.player2_id then
+    return jsonb_build_object('success', false, 'error', 'You are not a player in this match.');
+  end if;
+  if v_match.status not in ('lobby', 'in_progress') then
+    return jsonb_build_object('success', false, 'error', 'This match is no longer accepting ready confirmations.');
+  end if;
+
+  if v_match.status = 'in_progress' then
+    return jsonb_build_object('success', true, 'both_ready', true, 'message', 'Both players are ready.');
+  end if;
+
+  if p_user_id = v_match.player1_id then
+    update public.matches set player1_ready = true where id = p_match_id;
+  else
+    update public.matches set player2_ready = true where id = p_match_id;
+  end if;
+
+  select (player1_ready and player2_ready) into v_both_ready
+  from public.matches where id = p_match_id;
+
+  if v_both_ready then
+    update public.matches set status = 'in_progress' where id = p_match_id and status = 'lobby';
+    insert into public.pool_game_sessions (match_id, current_turn_user_id)
+      values (p_match_id, v_match.player1_id)
+      on conflict (match_id) do nothing;
+    return jsonb_build_object('success', true, 'both_ready', true, 'message', 'Both players are ready. The Pool match lobby is confirmed.');
+  end if;
+
+  return jsonb_build_object('success', true, 'both_ready', false, 'message', 'You are ready. Waiting for the other player.');
+end;
+$$;
+
+revoke all on function public.pool_set_ready(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.pool_set_ready(uuid, uuid) to service_role;
+
+-- Enable Realtime updates for the session row where supported. Ignore an
+-- already-published table so this migration remains safe to re-run.
+do $$
+begin
+  alter publication supabase_realtime add table public.pool_game_sessions;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end;
+$$;

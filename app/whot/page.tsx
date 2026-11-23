@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/utils/supabase/client";
+import { queueGameResultPopup } from "../../lib/naija/popup-bus";
 
 type Shape = "Circle" | "Triangle" | "Cross" | "Square" | "Star";
 type Card = { id: number; shape: Shape | "Whot"; value: number };
@@ -20,9 +21,15 @@ type GameData = {
   settlementStatus: string;
   winnerId: string | null;
   endReason: string | null;
+  draw?: boolean;
+  player1HighestCard?: number | null;
+  player2HighestCard?: number | null;
   isMyTurn: boolean;
   player1DisconnectedAt?: string | null;
   player2DisconnectedAt?: string | null;
+  pauseStartedAt?: number | null;
+  serverNow?: number;
+  paused?: boolean;
   player1LastSeen?: string | null;
   player2LastSeen?: string | null;
   match?: {
@@ -37,7 +44,7 @@ type GameData = {
 const SHAPES: Shape[] = ["Circle", "Triangle", "Cross", "Square", "Star"];
 
 function shapeSymbol(shape: Shape): string {
-  return ({ Circle: "Ã¢â€”Â", Triangle: "Ã¢â€“Â²", Cross: "Ã¢Å“Å¡", Square: "Ã¢â€“Â ", Star: "Ã¢Ëœâ€¦" })[shape];
+  return ({ Circle: "\u25CF", Triangle: "\u25B2", Cross: "\u271A", Square: "\u25A0", Star: "\u2605" })[shape];
 }
 
 function shapeColor(shape: Shape | "Whot"): string {
@@ -72,15 +79,15 @@ function PlayingCard({
       disabled={disabled || !onClick}
       aria-label={`${card.shape} ${card.value}`}
       className={[
-        "relative flex shrink-0 flex-col items-center justify-between rounded-xl border-2 bg-[#10251d] font-bold shadow-lg transition-all duration-150",
-        shapeColor(card.shape),
+        "relative flex shrink-0 flex-col items-center justify-between rounded-xl border-2 border-[#c62828] bg-white text-[#b71c1c] font-bold shadow-lg transition-all duration-150",
+
         small ? "h-20 w-14 p-1.5" : "h-28 w-[4.5rem] p-2 sm:h-32 sm:w-20 sm:p-3",
-        onClick && !disabled ? "cursor-pointer hover:-translate-y-2 hover:bg-[#193b2c]" : "",
+        onClick && !disabled ? "cursor-pointer hover:-translate-y-2 hover:bg-red-50" : "",
         disabled ? "cursor-not-allowed opacity-45" : "",
-        isWhot ? "bg-[#30220d]" : "",
+        isWhot ? "bg-[#fff1f1] ring-2 ring-[#c62828]" : "",
       ].join(" ")}
     >
-      <span className="self-start text-xs">{isWhot ? "W" : card.value}</span>
+      <span className="self-start text-xs">{isWhot ? "20" : card.value}</span>
       <span className="flex flex-1 items-center justify-center">
         <img
           src={`/whot/shapes/${imageName}.png`}
@@ -88,7 +95,7 @@ function PlayingCard({
           className={small ? "h-7 w-7 object-contain" : "h-10 w-10 object-contain sm:h-12 sm:w-12"}
         />
       </span>
-      <span className="self-end text-[9px] uppercase tracking-wider">{isWhot ? "Whot" : card.shape}</span>
+      <span className="self-end text-[9px] uppercase tracking-wider">{isWhot ? "WHOT" : card.shape}</span>
     </button>
   );
 }
@@ -105,6 +112,8 @@ export default function WhotPage() {
   const [choosingShape, setChoosingShape] = useState(false);
   const [clockNow, setClockNow] = useState(0);
   const [exitBusy, setExitBusy] = useState(false);
+  const serverSkewRef = useRef(0); // server clock minus this device's clock, so the countdown never trusts the device clock
+  const pausedRef = useRef(false);
 
   const getToken = useCallback(async () => {
     const { data, error: authError } = await supabase.auth.getSession();
@@ -141,6 +150,7 @@ export default function WhotPage() {
         setError("The Whot match has not started yet. Return to the match lobby and both players must select I'm Ready.");
         return;
       }
+      if (typeof result.game.serverNow === "number") serverSkewRef.current = result.game.serverNow - Date.now();
       setGame({
         ...result.game,
         match: result.match,
@@ -190,7 +200,7 @@ export default function WhotPage() {
     };
 
     void sendHeartbeat();
-    const heartbeat = window.setInterval(() => void sendHeartbeat(), 15000);
+    const heartbeat = window.setInterval(() => void sendHeartbeat(), 5000);
     return () => {
       stopped = true;
       window.clearInterval(heartbeat);
@@ -202,7 +212,7 @@ export default function WhotPage() {
     cardId?: number,
     chosenShape?: Shape,
   ) => {
-    if (!matchId || actionBusy) return;
+    if (!matchId || actionBusy || pausedRef.current) return; // frozen while a player is disconnected (server refuses too)
     setActionBusy(true);
     setError("");
 
@@ -280,25 +290,33 @@ export default function WhotPage() {
   );
 
   const isWinner = Boolean(game?.winnerId && userId && game.winnerId === userId);
-  const myTurn = Boolean(game?.isMyTurn && !isFinished && !choosingShape);
+  useEffect(() => {
+    if (!game || !matchId || !userId) return;
+    if (game.settlementStatus !== "paid" || !game.winnerId) return;
 
-  // The server records a player's disconnect time after their heartbeat expires.
-  // Derive the five-minute display from that server timestamp; the database timeout
-  // job remains responsible for deciding and settling the forfeiture.
-  const opponentDisconnectedAt = game && game.match && userId
-    ? (game.match.player1_id === userId
-        ? game.player2DisconnectedAt
-        : game.player1DisconnectedAt)
-    : null;
-  const disconnectDeadline = opponentDisconnectedAt
-    ? new Date(opponentDisconnectedAt).getTime() + 5 * 60 * 1000
-    : null;
+    queueGameResultPopup("whot", matchId, userId, game.winnerId === userId);
+  }, [game?.settlementStatus, game?.winnerId, matchId, userId]);
+  // PAUSE: when EITHER player is disconnected the whole match is frozen for both players. The server refuses every
+  // game action meanwhile (423); this only mirrors that so buttons are disabled and the reason is explained.
+  const p1Gone = game?.player1DisconnectedAt ?? null;
+  const p2Gone = game?.player2DisconnectedAt ?? null;
+  const paused = Boolean(game && game.settlementStatus === "pending" && (p1Gone || p2Gone) && !isFinished);
+  pausedRef.current = paused;
+  const iAmPlayer1 = Boolean(game?.match && userId && game.match.player1_id === userId);
+  const iAmDisconnected = Boolean(iAmPlayer1 ? p1Gone : p2Gone);
+  const opponentDisconnectedAt = iAmPlayer1 ? p2Gone : p1Gone;
+  // The 5-minute window started with the FIRST disconnect. Server timestamp + server clock offset.
+  const firstGone = Number(game?.pauseStartedAt) > 0
+    ? Number(game?.pauseStartedAt)
+    : [p1Gone, p2Gone].filter(Boolean).map((t) => new Date(t as string).getTime()).sort((x, y) => x - y)[0];
+  const disconnectDeadline = paused && Number.isFinite(firstGone) ? firstGone + 5 * 60 * 1000 : null;
   const disconnectSecondsLeft = disconnectDeadline
-    ? Math.max(0, Math.ceil((disconnectDeadline - clockNow) / 1000))
+    ? Math.max(0, Math.ceil((disconnectDeadline - (clockNow + serverSkewRef.current)) / 1000))
     : null;
   const disconnectCountdown = disconnectSecondsLeft === null
     ? null
     : `${Math.floor(disconnectSecondsLeft / 60)}:${String(disconnectSecondsLeft % 60).padStart(2, "0")}`;
+  const myTurn = Boolean(game?.isMyTurn && !isFinished && !choosingShape && !paused);
 
   const playCard = (card: Card) => {
     if (!myTurn || !playableIds.has(card.id) || actionBusy) return;
@@ -331,15 +349,17 @@ export default function WhotPage() {
   }
 
   const topCard = game.topCard;
+  const isExhaustionDraw = Boolean(game.draw || game.endReason === "draw_exhaustion");
   const statusText = isFinished
-    ? (isWinner ? "You won the match!" : game.settlementStatus === "refunded" ? "Match cancelled Ã¢â‚¬â€ stakes refunded" : "Match finished")
+    ? (isExhaustionDraw ? "Match drawn — stakes refunded" : isWinner ? "You won the match!" : game.settlementStatus === "refunded" ? "Match cancelled - stakes refunded" : "Match finished")
+    : paused ? "Game paused \u2014 waiting for reconnection"
     : myTurn ? "Your turn" : "Opponent's turn";
 
   return (
     <main className="min-h-screen bg-[#07120e] px-3 py-5 text-white sm:px-6 sm:py-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={handleExitGame} disabled={exitBusy || isFinished} className="text-sm text-emerald-300 transition hover:text-white disabled:opacity-50">← Dashboard</button>
+          <button type="button" onClick={handleExitGame} disabled={exitBusy || isFinished} className="text-sm text-emerald-300 transition hover:text-white disabled:opacity-50">â† Dashboard</button>
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">SquadBet Games</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">WHOT<span className="text-emerald-400">.</span></h1>
@@ -360,15 +380,15 @@ export default function WhotPage() {
               <span className="rounded-lg border border-white/10 px-3 py-2 text-slate-300">Opponent: <strong className="text-white">{game.opponentCardCount}</strong></span>
             </div>
           </div>
-          {opponentDisconnectedAt && !isFinished && (
+          {paused && (
             <div role="status" aria-live="polite" className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3">
-              <p className="font-bold text-amber-200">Opponent disconnected</p>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-amber-200">Time left to reconnect</p><p className="mt-1 text-4xl font-black tracking-widest tabular-nums text-amber-300">{disconnectCountdown ?? "5:00"}</p><p className="mt-1 text-xs text-amber-100">If they do not reconnect before the timer expires, the server timeout process will decide the match.</p>
+              <p className="font-bold text-amber-200">{iAmDisconnected && !opponentDisconnectedAt ? "You were disconnected \u2014 game paused" : opponentDisconnectedAt && !iAmDisconnected ? "Opponent disconnected \u2014 game paused" : "Both players disconnected \u2014 game paused"}</p><p className="mt-1 text-xs text-amber-100">No one can play until both players are back. You both continue from exactly where the game stopped.</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-amber-200">Time left to reconnect</p><p className="mt-1 text-4xl font-black tracking-widest tabular-nums text-amber-300">{disconnectCountdown ?? "5:00"}</p><p className="mt-1 text-xs text-amber-100">If the player does not reconnect before the timer expires, the server decides the match.</p>
             </div>
           )}
           <p aria-live="polite" className="mt-4 rounded-xl bg-black/20 px-3 py-3 text-sm leading-6 text-emerald-100">{game.message || "Match connected."}</p>
           {error && <p role="alert" className="mt-3 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
-          {actionBusy && <p className="mt-2 text-xs text-slate-400">Sending moveÃ¢â‚¬Â¦</p>}
+          {actionBusy && <p className="mt-2 text-xs text-slate-400">Sending move...</p>}
         </section>
 
         <section className="rounded-3xl border border-emerald-900/60 bg-[#0b1c15] p-4 shadow-2xl sm:p-7">
@@ -422,7 +442,7 @@ export default function WhotPage() {
               <p className="mb-3 text-center font-bold text-amber-200">Choose the active shape</p>
               <div className="flex flex-wrap justify-center gap-2">
                 {SHAPES.map((shape) => (
-                  <button key={shape} type="button" onClick={() => chooseShape(shape)} disabled={actionBusy} className={`rounded-xl border bg-black/20 px-3 py-3 font-semibold transition hover:bg-white/10 disabled:opacity-50 ${shapeColor(shape)}`}>
+                  <button key={shape} type="button" onClick={() => chooseShape(shape)} disabled={actionBusy || paused} className={`rounded-xl border bg-black/20 px-3 py-3 font-semibold transition hover:bg-white/10 disabled:opacity-50 ${shapeColor(shape)}`}>
                     <span className="mr-2">{shapeSymbol(shape)}</span>{shape}
                   </button>
                 ))}
@@ -457,23 +477,29 @@ export default function WhotPage() {
 
           {isFinished && (
             <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-5 text-center">
-              <p className="text-xl font-black">{isWinner ? "Victory!" : "Match over"}</p>
-              <p className="mt-2 text-sm text-slate-300">{game.endReason || game.message}</p>
+              <p className="text-xl font-black">{isExhaustionDraw ? "It's a draw!" : isWinner ? "Victory!" : "Match over"}</p>
+              <p className="mt-2 text-sm text-slate-300">{game.message || game.endReason}</p>
+              {game.player1HighestCard !== null && game.player1HighestCard !== undefined && game.player2HighestCard !== null && game.player2HighestCard !== undefined && (game.endReason === "draw_exhaustion" || game.endReason === "card_exhaustion" || game.message.toLowerCase().includes("highest-numbered")) && (
+                <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{iAmPlayer1 ? "Your highest card" : "Opponent's highest card"}</p>
+                    <p className="mt-1 text-2xl font-black text-white">{game.player1HighestCard}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{iAmPlayer1 ? "Opponent's highest card" : "Your highest card"}</p>
+                    <p className="mt-1 text-2xl font-black text-white">{game.player2HighestCard}</p>
+                  </div>
+                </div>
+              )}
               <a href="/dashboard" className="mt-4 inline-block rounded-xl bg-emerald-400 px-6 py-3 font-bold text-[#07120e]">Return to dashboard</a>
             </div>
           )}
         </section>
 
         <footer className="mt-5 text-center text-xs leading-6 text-slate-500">
-          Live multiplayer Whot. Your opponentÃ¢â‚¬â„¢s cards remain hidden; moves are validated by the server.
+          Live multiplayer Whot. Your opponent's cards remain hidden; moves are validated by the server.
         </footer>
       </div>
     </main>
   );
 }
-
-
-
-
-
-

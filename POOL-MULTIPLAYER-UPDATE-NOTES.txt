@@ -1,0 +1,17 @@
+SquadBet 8-Ball Pool multiplayer foundation update
+
+Included in this ZIP:
+- Replaced the /pool3d page's old iframe with a browser-loaded advanced Three.js 8-ball game source.
+- Added fullscreen control and responsive Pool HUD styling for phones/tablets/desktops.
+- Connected the match lobby's ready-up flow for 8-Ball Pool. Both players are redirected to /pool3d?matchId=<shared-id> when the match is live.
+- Added authenticated server API routes for Pool ready, heartbeat, exit, and turn-snapshot submission.
+- Added Supabase migration 202611040001_pool_multiplayer_core.sql with Pool sessions, 5% Pool entry-fee recording, turn ownership guard for snapshot posts, and disconnect timeout resolution/refund/forfeit.
+- Added a minute-based pg_cron disconnect sweeper when pg_cron is enabled. If pg_cron is not enabled, schedule public.pool_sweep_disconnects() every minute using Supabase Cron.
+
+IMPORTANT PRE-DEPLOYMENT REQUIREMENTS:
+1. Apply the new SQL migration in Supabase SQL Editor after taking a production backup and reviewing it. It replaces accept_challenge_and_reserve_stakes for Pool entry fee handling.
+2. Install dependencies locally (npm install) and run npm run typecheck and npm run build. Dependency installation could not finish in this work environment, so this ZIP is NOT build-verified.
+3. Normal match winner payout is NOT complete. The current client Three.js physics and turn snapshots are not yet server-authoritative; do not launch real-money Pool matches until server-side shot simulation and trusted winner settlement are implemented and tested. Disconnect-forfeit/refund settlement is included in the SQL foundation.
+4. The ZIP intentionally excludes app/.env.local and other .env files. Restore the project's own environment variables locally; do not upload secrets into source control.
+
+Production remains untouched by this ZIP. Deploy only after review and tests.

@@ -1,32 +1,30 @@
-:root {
+#pool-host {
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #03050b;
   color: #f7ead1;
 }
 
-* {
+#pool-host * {
   box-sizing: border-box;
   user-select: none;
 }
 
-html,
-body,
-#app {
+#pool-host {
   width: 100%;
   height: 100%;
   margin: 0;
   overflow: hidden;
 }
 
-body {
+#pool-host {
   background:
     radial-gradient(circle at 50% 35%, rgba(239, 196, 104, 0.08), transparent 28rem),
     radial-gradient(circle at 20% 80%, rgba(53, 122, 255, 0.08), transparent 25rem),
     #03050b;
 }
 
-canvas {
+#pool-host canvas {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -36,7 +34,7 @@ canvas {
   touch-action: none;
 }
 
-#hud {
+#pool-host #hud {
   position: fixed;
   z-index: 2;
   inset: 0;
@@ -51,14 +49,14 @@ canvas {
 }
 
 .topbar,
-.bottombar {
+#pool-host .bottombar {
   display: flex;
   align-items: stretch;
   justify-content: space-between;
   gap: 12px;
 }
 
-.panel {
+#pool-host .panel {
   min-width: 180px;
   max-width: min(560px, 92vw);
   padding: 14px 16px;
@@ -71,20 +69,20 @@ canvas {
   backdrop-filter: blur(12px);
 }
 
-.title {
+#pool-host .title {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.kicker {
+#pool-host .kicker {
   text-transform: uppercase;
   letter-spacing: 0.22em;
   font-size: 11px;
   color: #e5b75a;
 }
 
-h1 {
+#pool-host #hud h1 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(26px, 4vw, 56px);
@@ -93,21 +91,21 @@ h1 {
   text-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-#status {
+#pool-host #status {
   margin-top: 8px;
   color: #d9cab3;
   font-size: 14px;
   line-height: 1.35;
 }
 
-.score-grid {
+#pool-host .score-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   min-width: min(420px, 42vw);
 }
 
-.player-card {
+#pool-host .player-card {
   border-radius: 14px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.055);
@@ -115,13 +113,13 @@ h1 {
   transition: 160ms ease;
 }
 
-.player-card.active {
+#pool-host .player-card.active {
   border-color: rgba(242, 188, 79, 0.9);
   box-shadow: 0 0 26px rgba(242, 188, 79, 0.18);
   transform: translateY(-1px);
 }
 
-.player-card .name {
+#pool-host .player-card .name {
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -131,20 +129,20 @@ h1 {
   color: #e5b75a;
 }
 
-.player-card .group {
+#pool-host .player-card .group {
   margin-top: 4px;
   font-weight: 700;
   font-size: 18px;
 }
 
-.mini-balls {
+#pool-host .mini-balls {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 10px;
 }
 
-.mini-ball {
+#pool-host .mini-ball {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -156,17 +154,17 @@ h1 {
   box-shadow: inset -2px -2px 3px rgba(0, 0, 0, 0.3), inset 1px 1px 2px rgba(255, 255, 255, 0.8);
 }
 
-.mini-ball.pocketed {
+#pool-host .mini-ball.pocketed {
   opacity: 0.2;
   filter: grayscale(1);
 }
 
-.meter-panel {
+#pool-host .meter-panel {
   align-self: end;
   width: min(360px, 44vw);
 }
 
-.meter-label {
+#pool-host .meter-label {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
@@ -175,7 +173,7 @@ h1 {
   letter-spacing: 0.12em;
 }
 
-.power-track {
+#pool-host .power-track {
   height: 12px;
   margin-top: 10px;
   border-radius: 999px;
@@ -184,7 +182,7 @@ h1 {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-#powerFill {
+#pool-host #powerFill {
   height: 100%;
   width: 0%;
   border-radius: 999px;
@@ -192,18 +190,18 @@ h1 {
   box-shadow: 0 0 18px rgba(242, 193, 78, 0.5);
 }
 
-.controls {
+#pool-host .controls {
   font-size: 13px;
   line-height: 1.55;
   color: #d9cab3;
 }
 
 .controls strong,
-.key {
+#pool-host .key {
   color: #fff3d5;
 }
 
-.key {
+#pool-host .key {
   display: inline-block;
   padding: 1px 7px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -213,7 +211,7 @@ h1 {
   margin: 0 2px;
 }
 
-#shotBanner {
+#pool-host #shotBanner {
   justify-self: center;
   align-self: center;
   text-align: center;
@@ -227,12 +225,12 @@ h1 {
   transition: 250ms ease;
 }
 
-#shotBanner.show {
+#pool-host #shotBanner.show {
   opacity: 1;
   transform: none;
 }
 
-button {
+#pool-host button {
   pointer-events: auto;
   border: 1px solid rgba(255, 225, 166, 0.46);
   border-radius: 14px;
@@ -246,41 +244,109 @@ button {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
-button:hover {
+#pool-host button:hover {
   background: linear-gradient(180deg, rgba(251, 197, 91, 0.28), rgba(84, 49, 13, 0.18));
 }
 
-.mobile-shot {
+#pool-host .mobile-shot {
   display: none;
   gap: 8px;
   pointer-events: auto;
 }
 
-.mobile-shot button {
+#pool-host .mobile-shot button {
   min-width: 70px;
 }
 
 @media (max-width: 860px) {
-  #hud {
+  #pool-host #hud {
     padding: 10px;
   }
-  .topbar,
-  .bottombar {
+  #pool-host .topbar,
+  #pool-host .bottombar {
     flex-direction: column;
     align-items: stretch;
   }
-  .score-grid,
-  .meter-panel {
+  #pool-host .score-grid,
+  #pool-host .meter-panel {
     width: 100%;
     min-width: 0;
   }
-  .controls {
+  #pool-host .controls {
     display: none;
   }
-  .mobile-shot {
+  #pool-host .mobile-shot {
     display: flex;
   }
-  h1 {
+  #pool-host #hud h1 {
     font-size: 32px;
+  }
+}
+.pool-game-shell { position: fixed; inset: 0; z-index: 40; overflow: hidden; background: #03050b; color: #fff; }
+#pool-host { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+.pool-match-strip { position: absolute; z-index: 30; left: 12px; right: 12px; top: 10px; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 14px; background: rgba(4,7,13,.78); color: #fff; backdrop-filter: blur(10px); font: 13px/1.3 system-ui,sans-serif; }
+.pool-back,.pool-fullscreen { flex: 0 0 auto; border: 1px solid rgba(255,255,255,.22); border-radius: 9px; padding: 8px 10px; color: white; text-decoration: none; background: rgba(255,255,255,.07); }
+.pool-fullscreen { cursor: pointer; }
+.pool-match-meta { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.pool-match-meta span,.pool-match-meta small { overflow-wrap: anywhere; color: #e0d5c1; font-size: 11px; }
+.pool-overlay-note { position: absolute; z-index: 35; top: 78px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); border-radius: 10px; background: rgba(70,15,15,.9); padding: 10px 14px; color: #ffe3e3; font: 13px system-ui,sans-serif; text-align: center; }
+@media (max-width: 560px) { .pool-match-strip { left: 6px; right: 6px; top: 6px; gap: 6px; padding: 7px; } .pool-back,.pool-fullscreen { padding: 7px; font-size: 11px; } .pool-match-meta strong { font-size: 11px; } .pool-match-meta span,.pool-match-meta small { font-size: 9px; } }
+#pool-host #hud { padding-top: 76px; }
+@media (max-width: 860px) { #pool-host #hud { padding-top: 70px; } }
+@media (max-width: 860px) {
+  #pool-host .mobile-shot button { min-height: 48px; min-width: 76px; padding: 12px 10px; font-size: 12px; touch-action: manipulation; }
+  #pool-host .mobile-shot #shootButton { min-width: 112px; min-height: 56px; font-size: 15px; }
+  #pool-host .meter-panel { padding: 12px; }
+}
+
+.pool-ready-button { align-self: flex-start; border: 1px solid rgba(255,210,90,.65); border-radius: 8px; background: linear-gradient(135deg,#d6a33a,#9b6a16); color: #160f04; padding: 7px 12px; font: 700 12px system-ui,sans-serif; cursor: pointer; }
+.pool-ready-button:disabled { opacity: .58; cursor: not-allowed; }
+.pool-ready-status { color: #a8efbd !important; font-weight: 700; }
+@media (max-width: 560px) { .pool-ready-button { padding: 6px 9px; font-size: 10px; } }
+
+#pool-host button:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.55); }
+
+
+/* SQUADBET POOL POWER SLIDER */
+.power-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 13px;
+  color: #e8d6ad;
+  font: 700 10px/1.2 system-ui, sans-serif;
+  letter-spacing: 1.2px;
+}
+
+.power-slider {
+  flex: 1;
+  min-width: 70px;
+  height: 7px;
+  accent-color: #d6a94e;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.power-slider-hint {
+  color: #aeb8c7;
+  font-size: 10px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.meter-panel {
+  border: 1px solid rgba(214,169,78,.25);
+  background: linear-gradient(145deg, rgba(15,24,35,.96), rgba(5,10,17,.96));
+  box-shadow: 0 12px 35px rgba(0,0,0,.25);
+}
+
+@media (max-width: 560px) {
+  .power-slider-row {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .power-slider {
+    min-height: 28px;
   }
 }

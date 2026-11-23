@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../utils/supabase/client";
+import { queueNaijaPopup } from "../../lib/naija/popup-bus";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function RegisterPage() {
     const cleanUsername = username.trim();
 
     if (!/^[A-Za-z0-9_]{3,20}$/.test(cleanUsername)) {
-      setMessage("Username must be 3–20 characters using letters, numbers, or underscores.");
+      setMessage("Username must be 3-20 characters using letters, numbers, or underscores.");
       return;
     }
 
@@ -53,6 +54,7 @@ export default function RegisterPage() {
       }
 
       if (data.user && data.session) {
+        queueNaijaPopup("register", `register:${data.user.id}`, 5000);
         router.push("/");
         router.refresh();
       } else {
@@ -85,7 +87,7 @@ export default function RegisterPage() {
             <div>
               <label htmlFor="username" className="mb-1 block text-sm">Unique username</label>
               <input id="username" autoComplete="username" required minLength={3} maxLength={20}
-                pattern="[A-Za-z0-9_]+" title="Use 3–20 letters, numbers, or underscores."
+                pattern="[A-Za-z0-9_]+" title="Use 3-20 letters, numbers, or underscores."
                 value={username} onChange={(e) => setUsername(e.target.value)}
                 className={inputClass} placeholder="e.g. SquadKing7" />
             </div>

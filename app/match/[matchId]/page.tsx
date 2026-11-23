@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -36,6 +36,7 @@ function MatchLobbyContent() {
   });
   const [loading, setLoading] = useState(true);
   const [readyLoading, setReadyLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -139,6 +140,8 @@ function MatchLobbyContent() {
   useEffect(() => {
     if (match?.status === "in_progress" && match.game.toLowerCase().includes("whot")) {
       router.replace(`/whot?matchId=${encodeURIComponent(match.id)}`);
+    } else if (match?.status === "in_progress" && match.game.toLowerCase().includes("pool")) {
+      router.replace(`/pool3d?matchId=${encodeURIComponent(match.id)}`);
     }
   }, [match, router]);
 
@@ -161,8 +164,9 @@ function MatchLobbyContent() {
         return;
       }
 
+      const isPoolMatch = match.game.toLowerCase().includes("pool");
       const response = await fetch(
-        `/api/whot/${encodeURIComponent(match.id)}/ready`,
+        `${isPoolMatch ? "/api/pool" : "/api/whot"}/${encodeURIComponent(match.id)}/ready`,
         {
           method: "POST",
           headers: {
@@ -193,6 +197,59 @@ function MatchLobbyContent() {
     setReadyLoading(false);
   };
 
+  const handleCancel = async () => {
+    if (!match || !match.game.toLowerCase().includes("pool") || cancelLoading) return;
+
+    const confirmed = window.confirm(
+      "Cancel this Pool match? Both players will receive their full 95% net stakes back. SquadBet keeps the 5% fees already collected."
+    );
+
+    if (!confirmed) return;
+
+    setCancelLoading(true);
+    setErrorMessage("");
+    setNotice("");
+
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      const token = sessionData.session?.access_token;
+
+      if (sessionError || !token) {
+        setErrorMessage("Your login session has expired. Please log in again.");
+        return;
+      }
+
+      const response = await fetch(
+        `/api/pool/${encodeURIComponent(match.id)}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setErrorMessage(result.error || "Could not cancel this match.");
+        return;
+      }
+
+      setNotice(result.message || "Match cancelled. Both players have been refunded.");
+      await loadMatch();
+      router.replace("/dashboard");
+    } catch (error) {
+      console.error("Pool lobby cancellation failed:", error);
+      setErrorMessage("A network error occurred. Please try again.");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
@@ -206,6 +263,7 @@ function MatchLobbyContent() {
   const opponentReady = isPlayer1 ? match?.player2_ready : match?.player1_ready;
   const bothReady = Boolean(match?.player1_ready && match?.player2_ready);
   const isWhot = match?.game.toLowerCase().includes("whot") ?? false;
+  const isPool = match?.game.toLowerCase().includes("pool") ?? false;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
@@ -214,7 +272,7 @@ function MatchLobbyContent() {
           href="/dashboard"
           className="text-sm text-emerald-300 hover:text-emerald-200"
         >
-          ← Back to dashboard
+          â† Back to dashboard
         </Link>
 
         <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6 sm:p-8">
@@ -236,18 +294,18 @@ function MatchLobbyContent() {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-700 p-4">
-                  <p className="text-sm text-slate-400">Player 1 · Challenger</p>
+                  <p className="text-sm text-slate-400">Player 1 Â· Challenger</p>
                   <p className="mt-2 text-lg font-semibold">{names.player1}</p>
                   <p className={`mt-2 text-sm ${match.player1_ready ? "text-emerald-300" : "text-amber-300"}`}>
-                    {match.player1_ready ? "✓ Ready" : "Waiting to get ready"}
+                    {match.player1_ready ? "âœ“ Ready" : "Waiting to get ready"}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-slate-700 p-4">
-                  <p className="text-sm text-slate-400">Player 2 · Recipient</p>
+                  <p className="text-sm text-slate-400">Player 2 Â· Recipient</p>
                   <p className="mt-2 text-lg font-semibold">{names.player2}</p>
                   <p className={`mt-2 text-sm ${match.player2_ready ? "text-emerald-300" : "text-amber-300"}`}>
-                    {match.player2_ready ? "✓ Ready" : "Waiting to get ready"}
+                    {match.player2_ready ? "âœ“ Ready" : "Waiting to get ready"}
                   </p>
                 </div>
               </div>
@@ -260,7 +318,7 @@ function MatchLobbyContent() {
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-400">Stake per player</span>
                   <span className="font-semibold">
-                    ₦{Number(match.stake_amount).toLocaleString("en-NG")}
+                    â‚¦{Number(match.stake_amount).toLocaleString("en-NG")}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -277,12 +335,11 @@ function MatchLobbyContent() {
                 </p>
               )}
 
-              {isWhot && match.status !== "in_progress" && match.status !== "completed" && match.status !== "cancelled" && (
+              {(isWhot || isPool) && match.status !== "in_progress" && match.status !== "completed" && match.status !== "cancelled" && (
                 <div className="mt-6 rounded-xl border border-slate-700 p-5">
                   <h2 className="text-lg font-semibold">Ready to play?</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-300">
-                    Both players must confirm readiness. The Whot game will
-                    start automatically when both players are ready.
+                    Both players must confirm readiness. {isPool ? "Your shared 8-Ball Pool lobby will launch automatically when both players are ready." : "The Whot game will start automatically when both players are ready."}
                   </p>
 
                   <button
@@ -294,9 +351,20 @@ function MatchLobbyContent() {
                     {readyLoading
                       ? "Confirming..."
                       : myReady
-                        ? "You are ready — waiting for opponent"
+                        ? "You are ready â€” waiting for opponent"
                         : "I'm Ready"}
                   </button>
+
+                  {isPool && (
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={cancelLoading || match.status === "in_progress"}
+                      className="mt-3 w-full rounded-xl border border-red-500/60 bg-red-950/40 px-5 py-3 font-bold text-red-300 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {cancelLoading ? "Cancelling match..." : "Cancel Match"}
+                    </button>
+                  )}
 
                   <p className="mt-3 text-center text-xs text-slate-400">
                     {opponentReady
@@ -306,10 +374,9 @@ function MatchLobbyContent() {
                 </div>
               )}
 
-              {!isWhot && (
+              {!isWhot && !isPool && (
                 <p className="mt-5 rounded-lg bg-amber-950 p-4 text-sm text-amber-200">
-                  Ready-up is currently being connected for Whot. This match's
-                  game is {match.game}.
+                  Ready-up is currently being connected. This match's game is {match.game}.
                 </p>
               )}
 
