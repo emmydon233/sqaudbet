@@ -125,11 +125,18 @@ export async function GET(
         settlementStatus: session.settlement_status,
         winnerId: session.winner_id,
         endReason: session.end_reason,
+        draw: state.draw === true,
+        player1HighestCard: Number.isInteger(Number(state.player1HighestCard)) ? Number(state.player1HighestCard) : null,
+        player2HighestCard: Number.isInteger(Number(state.player2HighestCard)) ? Number(state.player2HighestCard) : null,
         isMyTurn: state.turn === userId,
         player1LastSeen: session.player1_last_seen,
         player2LastSeen: session.player2_last_seen,
         player1DisconnectedAt: session.player1_disconnected_at,
         player2DisconnectedAt: session.player2_disconnected_at,
+        pauseStartedAt: Number.isFinite(Number(state.pauseStartedAt)) ? Number(state.pauseStartedAt) : null,
+        // Server clock so the 5-minute countdown never depends on the player's own device clock.
+        serverNow: Date.now(),
+        paused: session.settlement_status === "pending" && Boolean(session.player1_disconnected_at || session.player2_disconnected_at),
       },
     });
   } catch (error) {

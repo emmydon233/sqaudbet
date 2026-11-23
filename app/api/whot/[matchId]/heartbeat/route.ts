@@ -63,7 +63,7 @@ export async function POST(
 
     const { data: session, error: sessionError } = await db
       .from("whot_game_sessions")
-      .select("settlement_status")
+      .select("settlement_status,game_state,player1_disconnected_at,player2_disconnected_at")
       .eq("match_id", matchId)
       .maybeSingle();
 
@@ -75,19 +75,30 @@ export async function POST(
     }
 
     const now = new Date().toISOString();
+    const isPlayer1 = match.player1_id === userId;
+    const mine = isPlayer1 ? session.player1_disconnected_at : session.player2_disconnected_at;
+    const other = isPlayer1 ? session.player2_disconnected_at : session.player1_disconnected_at;
+    const gameState = (session.game_state ?? {}) as Record<string, any>;
+    const priorPauseStart = Number(gameState.pauseStartedAt);
+    const disconnectTimes = [session.player1_disconnected_at, session.player2_disconnected_at]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Date.parse(value))
+      .filter(Number.isFinite);
+    const observedPauseStart = disconnectTimes.length ? Math.min(...disconnectTimes) : null;
+    const pauseStartedAt = Number.isFinite(priorPauseStart) && priorPauseStart > 0
+      ? priorPauseStart
+      : observedPauseStart;
 
-    const presenceUpdate =
-      match.player1_id === userId
-        ? {
-            player1_last_seen: now,
-            player1_disconnected_at: null,
-            updated_at: now,
-          }
-        : {
-            player2_last_seen: now,
-            player2_disconnected_at: null,
-            updated_at: now,
-          };
+    // Keep the first disconnect timestamp in game_state while the other player is still away.
+    // pool presence timestamps are cleared on reconnect, so without this marker the countdown
+    // would incorrectly restart from the second player's later disconnect time.
+    const nextGameState = { ...gameState };
+    if (other && pauseStartedAt) nextGameState.pauseStartedAt = pauseStartedAt;
+    else delete nextGameState.pauseStartedAt;
+
+    const presenceUpdate = isPlayer1
+      ? { player1_last_seen: now, player1_disconnected_at: null, updated_at: now, game_state: nextGameState }
+      : { player2_last_seen: now, player2_disconnected_at: null, updated_at: now, game_state: nextGameState };
 
     const { error: updateError } = await db
       .from("whot_game_sessions")

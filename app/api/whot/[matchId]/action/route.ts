@@ -65,6 +65,27 @@ export async function POST(
       );
     }
 
+    // PAUSE: while either player is disconnected (server-recorded disconnect time) the whole match is frozen for BOTH
+    // players. Every game action - play, draw, pass, choose shape, market - is refused here, so bypassing the
+    // disabled buttons (manual API calls, stale tabs, duplicate requests) changes nothing.
+    {
+      const { data: presence, error: presenceError } = await db
+        .from("whot_game_sessions")
+        .select("settlement_status, player1_disconnected_at, player2_disconnected_at")
+        .eq("match_id", matchId)
+        .maybeSingle();
+      if (presenceError) {
+        console.error("Whot pause check error:", presenceError);
+        return NextResponse.json({ success: false, error: "Could not process your move" }, { status: 500 });
+      }
+      if (presence && presence.settlement_status === "pending" && (presence.player1_disconnected_at || presence.player2_disconnected_at)) {
+        return NextResponse.json(
+          { success: false, paused: true, error: "The game is paused because a player disconnected. Play resumes when they are back." },
+          { status: 423 }
+        );
+      }
+    }
+
     const { data, error } =
       action === "market"
         ? await db.rpc("whot_market_draw", {

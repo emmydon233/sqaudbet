@@ -1,0 +1,24 @@
+SquadBet Part 7 - disconnect pause corrections
+
+Overlay these paths onto the existing working copy. The ZIP contains only the 11 affected files; it is not a full project archive.
+
+Pool:
+- Shot and timeout API routes now reject gameplay changes with HTTP 423 while either player is disconnected.
+- Heartbeat captures the original pause start across staggered reconnects and restores turnStartedAt only after the final player returns. A persisted marker and conditional update prevent repeated restoration of the same pause duration.
+- Existing client pause/freeze/countdown behavior is retained from the inspection snapshot.
+
+Whot:
+- Every action is rejected server-side with HTTP 423 while either player is disconnected.
+- Game-state GET includes serverNow and paused.
+- Heartbeat preserves the first disconnect timestamp in game_state while the other player remains disconnected, so the countdown does not restart when the first player reconnects.
+- Client countdown uses the preserved timestamp and server clock.
+
+Safety:
+- No wallet, fee, refund, winnings, or settlement logic was changed.
+- No SQL migration was added or executed.
+- This is a local patch only. Do not deploy until integrated and tested in the working copy.
+
+Validation performed:
+- tests/disconnect-pause.test.cjs: 7/7 passing.
+- TypeScript syntax transpilation: 11 files, 0 syntax errors.
+- Full project typecheck/build not run because dependencies/node_modules are not present in the available project snapshot.

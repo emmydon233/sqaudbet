@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { supabase } from "../../utils/supabase/client";
+import { queueNaijaPopup } from "../../lib/naija/popup-bus";
 
 function LoginForm() {
   const router = useRouter();
@@ -31,6 +32,8 @@ function LoginForm() {
         setMessage(error.message);
         return;
       }
+
+      queueNaijaPopup("login", "login", 5000);
 
       const requestedNext = searchParams.get("next");
       const allowedRoutes = ["/", "/whot", "/snooker", "/ludo"];

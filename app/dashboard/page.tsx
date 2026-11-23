@@ -50,6 +50,31 @@ const games = [
   },
 ];
 
+// Stake choices: ₦500 up to ₦50,000 in exact steps of ₦500 (500, 1,000, 1,500 ... 50,000). Nothing in between.
+const STAKE_STEP = 500;
+const STAKE_MIN = 500;
+const STAKE_MAX = 50000;
+
+function isAllowedStake(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= STAKE_MIN && value <= STAKE_MAX && value % STAKE_STEP === 0;
+}
+
+const naira = (n: number) => `\u20A6${n.toLocaleString("en-NG")}`;
+
+/** Returns null when the amount is allowed, otherwise a message that says what to use instead. */
+function stakeProblem(value: number): string | null {
+  if (isAllowedStake(value)) return null;
+  if (!Number.isFinite(value) || value <= 0) return `Enter a stake amount. The minimum is ${naira(STAKE_MIN)}.`;
+  if (value < STAKE_MIN) return `The minimum stake is ${naira(STAKE_MIN)}.`;
+  if (value > STAKE_MAX) return `The maximum stake is ${naira(STAKE_MAX)}.`;
+  const up = Math.min(STAKE_MAX, Math.ceil(value / STAKE_STEP) * STAKE_STEP);
+  const down = Math.max(STAKE_MIN, Math.floor(value / STAKE_STEP) * STAKE_STEP);
+  const more = up < STAKE_MAX ? `, ${naira(up + STAKE_STEP)} and above` : "";
+  return `${naira(Math.round(value))} is not allowed. Stakes go up in steps of ${naira(STAKE_STEP)}. Use ${naira(up)} instead${down !== up ? ` (or ${naira(down)})` : ""}${more}.`;
+}
+
+const STAKE_QUICK_PICKS = [500, 1000, 1500, 2000, 5000, 10000, 20000, 50000];
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -410,8 +435,9 @@ export default function DashboardPage() {
 
     const stake = Number(stakeAmount);
 
-    if (!Number.isSafeInteger(stake) || stake < 500 || stake > 50000) {
-      setChallengeMessage("Stake must be a whole naira amount between ₦500 and ₦50,000.");
+    const stakeIssue = stakeProblem(stake);
+    if (stakeIssue) {
+      setChallengeMessage(stakeIssue);
       return;
     }
 
@@ -906,16 +932,35 @@ export default function DashboardPage() {
                 Stake amount
               </label>
 
-              <select
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
                 value={stakeAmount}
-                onChange={(e) => setStakeAmount(e.target.value)}
+                onChange={(e) => setStakeAmount(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                placeholder="500"
+                aria-describedby="stake-hint"
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-white"
-              >
-                <option value="500">₦500</option>
-                <option value="1000">₦1,000</option>
-                <option value="1500">₦1,500</option>
-                <option value="2000">₦2,000</option>
-              </select>
+              />
+              <p id="stake-hint" className="mt-2 text-xs text-slate-400">
+                Steps of ₦500: ₦500, ₦1,000, ₦1,500, ₦2,000 … up to ₦50,000.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {STAKE_QUICK_PICKS.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setStakeAmount(String(amount))}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                      stakeAmount === String(amount)
+                        ? "border-emerald-400 bg-emerald-400/20 text-emerald-300"
+                        : "border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    {naira(amount)}
+                  </button>
+                ))}
+              </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
