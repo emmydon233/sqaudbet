@@ -1,7 +1,11 @@
 ﻿import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['172.20.10.14'],
+  turbopack: {
+    root: path.resolve(process.cwd()),
+  },
+  allowedDevOrigins: ["172.20.10.14"],
   cacheComponents: true,
   async headers() {
     return [
@@ -19,5 +23,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-
